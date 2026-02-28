@@ -1,95 +1,116 @@
 const mongoose = require("mongoose");
+const { PRODUCE_CATALOG, BRANCHES } = require("../config/domain");
 
 const alphaNumericWithSpaces = /^[a-zA-Z0-9 ]+$/;
-const ninRegex = /^[A-Z]{2}[A-Z0-9]{12}$/i;
+const ninRegex = /^(CM|CF)[A-Z0-9]{12}$/i;
 const phoneRegex = /^\+?[0-9]{10,15}$/;
 
-const saleSchema = new mongoose.Schema({
-  saleType: {
-    type: String,
-    enum: ["Cash", "Credit"],
-    required: true
-  },
+const saleSchema = new mongoose.Schema(
+  {
+    saleType: {
+      type: String,
+      enum: ["Cash", "Credit"],
+      required: true
+    },
 
-  produceName: {
-    type: String,
-    required: true,
-    match: alphaNumericWithSpaces
-  },
-  produceType: {
-    type: String,
-    required: function requiredProduceType() {
-      return this.saleType === "Credit";
+    produceName: {
+      type: String,
+      enum: PRODUCE_CATALOG,
+      required: true
     },
-    match: /^[A-Za-z]+$/
-  },
-  tonnage: { type: Number, required: true, min: 1 },
+    produceType: {
+      type: String,
+      required: function requiredProduceType() {
+        return this.saleType === "Credit";
+      },
+      match: /^[A-Za-z ]+$/
+    },
+    branch: {
+      type: String,
+      enum: BRANCHES,
+      required: true
+    },
+    tonnage: { type: Number, required: true, min: 1 },
 
-  amountPaid: {
-    type: Number,
-    required: function requiredAmountPaid() {
-      return this.saleType === "Cash";
+    unitPriceUsed: { type: Number, required: true, min: 1 },
+    totalExpected: { type: Number, required: true, min: 1 },
+    amountPaid: {
+      type: Number,
+      required: function requiredAmountPaid() {
+        return this.saleType === "Cash";
+      },
+      min: 10000
     },
-    min: 10000
-  },
-  amountDue: {
-    type: Number,
-    required: function requiredAmountDue() {
-      return this.saleType === "Credit";
+    amountDue: {
+      type: Number,
+      required: function requiredAmountDue() {
+        return this.saleType === "Credit";
+      },
+      min: 10000
     },
-    min: 10000
-  },
 
-  buyerName: {
-    type: String,
-    required: true,
-    minlength: 2,
-    match: alphaNumericWithSpaces
-  },
-  nationalId: {
-    type: String,
-    required: function requiredNationalId() {
-      return this.saleType === "Credit";
+    buyerName: {
+      type: String,
+      required: true,
+      minlength: 2,
+      match: alphaNumericWithSpaces
     },
-    match: ninRegex
-  },
-  location: {
-    type: String,
-    required: function requiredLocation() {
-      return this.saleType === "Credit";
+    nationalId: {
+      type: String,
+      required: function requiredNationalId() {
+        return this.saleType === "Credit";
+      },
+      match: ninRegex
     },
-    minlength: 2,
-    match: alphaNumericWithSpaces
-  },
-  contact: {
-    type: String,
-    required: function requiredContact() {
-      return this.saleType === "Credit";
+    location: {
+      type: String,
+      required: function requiredLocation() {
+        return this.saleType === "Credit";
+      },
+      minlength: 2,
+      match: alphaNumericWithSpaces
     },
-    match: phoneRegex
-  },
+    contact: {
+      type: String,
+      required: function requiredContact() {
+        return this.saleType === "Credit";
+      },
+      match: phoneRegex
+    },
 
-  salesAgentName: {
-    type: String,
-    required: true,
-    minlength: 2,
-    match: alphaNumericWithSpaces
-  },
-  dueDate: {
-    type: Date,
-    required: function requiredDueDate() {
-      return this.saleType === "Credit";
+    salesAgentName: {
+      type: String,
+      required: true,
+      minlength: 2,
+      match: alphaNumericWithSpaces
+    },
+    dueDate: {
+      type: Date,
+      required: function requiredDueDate() {
+        return this.saleType === "Credit";
+      }
+    },
+    dispatchDate: {
+      type: Date,
+      required: function requiredDispatchDate() {
+        return this.saleType === "Credit";
+      }
+    },
+
+    date: {
+      type: Date,
+      required: function requiredDate() {
+        return this.saleType === "Cash";
+      }
+    },
+    time: {
+      type: String,
+      required: function requiredTime() {
+        return this.saleType === "Cash";
+      }
     }
   },
-  dispatchDate: {
-    type: Date,
-    required: function requiredDispatchDate() {
-      return this.saleType === "Credit";
-    }
-  },
-
-  date: { type: Date, required: function requiredDate() { return this.saleType === "Cash"; } },
-  time: { type: String, required: function requiredTime() { return this.saleType === "Cash"; } }
-});
+  { timestamps: true }
+);
 
 module.exports = mongoose.model("Sale", saleSchema);

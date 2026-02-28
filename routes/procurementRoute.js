@@ -1,13 +1,175 @@
 const express = require("express");
-const { body, validationResult } = require("express-validator");
-const Procurement = require("../models/procurement");
+const { body, param } = require("express-validator");
 const auth = require("../middleware/authMiddleware");
 const role = require("../middleware/roleMiddleware");
+const {
+  listProcurements,
+  getProcurementById,
+  createProcurement,
+  updateProcurementById,
+  deleteProcurementById
+} = require("../controllers/procurementController");
+const {
+  PRODUCE_CATALOG,
+  BRANCHES,
+  PROCUREMENT_SOURCE_TYPES,
+  OWN_FARM_NAMES
+} = require("../config/domain");
 
 const router = express.Router();
 const alphaNumericWithSpaces = /^[a-zA-Z0-9 ]+$/;
 const time24h = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const phoneRegex = /^\+?[0-9]{10,15}$/;
+
+const procurementCreateValidators = [
+  body().custom((value) => {
+    if (!value.sourceName && !value.dealerName) {
+      throw new Error("sourceName is required");
+    }
+
+    return true;
+  }),
+  body("produceName")
+    .trim()
+    .isIn(PRODUCE_CATALOG)
+    .withMessage("produceName must be from the approved produce catalog"),
+  body("produceType")
+    .trim()
+    .isLength({ min: 2 })
+    .withMessage("produceType must have at least 2 characters")
+    .matches(/^[A-Za-z ]+$/)
+    .withMessage("produceType must contain alphabetic characters only"),
+  body("date")
+    .notEmpty()
+    .withMessage("date is required")
+    .isISO8601()
+    .withMessage("date must be a valid date"),
+  body("time")
+    .notEmpty()
+    .withMessage("time is required")
+    .matches(time24h)
+    .withMessage("time must be in HH:mm format"),
+  body("tonnage")
+    .isNumeric()
+    .withMessage("tonnage must be numeric")
+    .isFloat({ min: 100 })
+    .withMessage("tonnage must be at least 100kg"),
+  body("cost")
+    .isNumeric()
+    .withMessage("cost must be numeric")
+    .isFloat({ min: 10000 })
+    .withMessage("cost must be at least 10000"),
+  body("sourceType")
+    .isIn(PROCUREMENT_SOURCE_TYPES)
+    .withMessage("sourceType must be IndividualDealer, Company, or Farm"),
+  body("sourceName")
+    .trim()
+    .optional()
+    .isLength({ min: 2 })
+    .withMessage("sourceName must have at least 2 characters")
+    .matches(alphaNumericWithSpaces)
+    .withMessage("sourceName must be alphanumeric"),
+  body("dealerName")
+    .trim()
+    .optional()
+    .isLength({ min: 2 })
+    .withMessage("dealerName must have at least 2 characters")
+    .matches(alphaNumericWithSpaces)
+    .withMessage("dealerName must be alphanumeric"),
+  body("branch")
+    .isIn(BRANCHES)
+    .withMessage("branch must be Maganjo or Matugga"),
+  body("contact")
+    .trim()
+    .matches(phoneRegex)
+    .withMessage("contact must be a valid phone number"),
+  body("sellingPrice")
+    .isNumeric()
+    .withMessage("sellingPrice must be numeric")
+    .isFloat({ min: 1 })
+    .withMessage("sellingPrice must be greater than 0"),
+  body().custom((value) => {
+    if (value.sourceType === "IndividualDealer" && Number(value.tonnage) < 1000) {
+      throw new Error("IndividualDealer procurements must be at least 1000kg");
+    }
+
+    const sourceName = value.sourceName || value.dealerName;
+    if (value.sourceType === "Farm" && !OWN_FARM_NAMES.includes(sourceName)) {
+      throw new Error("Farm sourceName must be Maganjo or Matugga");
+    }
+
+    return true;
+  })
+];
+
+const procurementUpdateValidators = [
+  param("id").isMongoId().withMessage("id must be a valid Mongo id"),
+  body("produceName")
+    .optional()
+    .trim()
+    .isIn(PRODUCE_CATALOG)
+    .withMessage("produceName must be from the approved produce catalog"),
+  body("produceType")
+    .optional()
+    .trim()
+    .isLength({ min: 2 })
+    .withMessage("produceType must have at least 2 characters")
+    .matches(/^[A-Za-z ]+$/)
+    .withMessage("produceType must contain alphabetic characters only"),
+  body("date")
+    .optional()
+    .isISO8601()
+    .withMessage("date must be a valid date"),
+  body("time")
+    .optional()
+    .matches(time24h)
+    .withMessage("time must be in HH:mm format"),
+  body("tonnage")
+    .optional()
+    .isNumeric()
+    .withMessage("tonnage must be numeric")
+    .isFloat({ min: 100 })
+    .withMessage("tonnage must be at least 100kg"),
+  body("cost")
+    .optional()
+    .isNumeric()
+    .withMessage("cost must be numeric")
+    .isFloat({ min: 10000 })
+    .withMessage("cost must be at least 10000"),
+  body("sourceType")
+    .optional()
+    .isIn(PROCUREMENT_SOURCE_TYPES)
+    .withMessage("sourceType must be IndividualDealer, Company, or Farm"),
+  body("sourceName")
+    .optional()
+    .trim()
+    .isLength({ min: 2 })
+    .withMessage("sourceName must have at least 2 characters")
+    .matches(alphaNumericWithSpaces)
+    .withMessage("sourceName must be alphanumeric"),
+  body("dealerName")
+    .optional()
+    .trim()
+    .isLength({ min: 2 })
+    .withMessage("dealerName must have at least 2 characters")
+    .matches(alphaNumericWithSpaces)
+    .withMessage("dealerName must be alphanumeric"),
+  body("branch")
+    .optional()
+    .isIn(BRANCHES)
+    .withMessage("branch must be Maganjo or Matugga"),
+  body("contact")
+    .optional()
+    .trim()
+    .matches(phoneRegex)
+    .withMessage("contact must be a valid phone number"),
+  body("sellingPrice")
+    .optional()
+    .isNumeric()
+    .withMessage("sellingPrice must be numeric")
+    .isFloat({ min: 1 })
+    .withMessage("sellingPrice must be greater than 0")
+];
 
 /**
  * @swagger
@@ -29,17 +191,19 @@ const phoneRegex = /^\+?[0-9]{10,15}$/;
  *               - time
  *               - tonnage
  *               - cost
- *               - dealerName
+ *               - sourceType
+ *               - sourceName
  *               - branch
  *               - contact
  *               - sellingPrice
  *             properties:
  *               produceName:
  *                 type: string
- *                 example: Tomatoes1
+ *                 enum: [Beans, Grain Maize, Cow peas, G-nuts, Soybeans]
+ *                 example: Beans
  *               produceType:
  *                 type: string
- *                 example: Tomatoes
+ *                 example: Grain
  *               date:
  *                 type: string
  *                 format: date
@@ -53,9 +217,15 @@ const phoneRegex = /^\+?[0-9]{10,15}$/;
  *               cost:
  *                 type: number
  *                 minimum: 10000
- *               dealerName:
+ *               sourceType:
+ *                 type: string
+ *                 enum: [IndividualDealer, Company, Farm]
+ *               sourceName:
  *                 type: string
  *                 example: Dealer12
+ *               dealerName:
+ *                 type: string
+ *                 description: Backward-compatible alias for sourceName
  *               branch:
  *                 type: string
  *                 enum: [Maganjo, Matugga]
@@ -79,76 +249,147 @@ router.post(
   "/",
   auth,
   role("Manager"),
-  [
-    body("produceName")
-      .trim()
-      .matches(alphaNumericWithSpaces)
-      .withMessage("produceName must be alphanumeric"),
-    body("produceType")
-      .trim()
-      .isLength({ min: 2 })
-      .withMessage("produceType must have at least 2 characters")
-      .matches(/^[A-Za-z]+$/)
-      .withMessage("produceType must contain alphabetic characters only"),
-    body("date")
-      .notEmpty()
-      .withMessage("date is required")
-      .isISO8601()
-      .withMessage("date must be a valid date"),
-    body("time")
-      .notEmpty()
-      .withMessage("time is required")
-      .matches(time24h)
-      .withMessage("time must be in HH:mm format"),
-    body("tonnage")
-      .isNumeric()
-      .withMessage("tonnage must be numeric")
-      .isFloat({ min: 100 })
-      .withMessage("tonnage must be at least 100kg"),
-    body("cost")
-      .isNumeric()
-      .withMessage("cost must be numeric")
-      .isFloat({ min: 10000 })
-      .withMessage("cost must be at least 10000"),
-    body("dealerName")
-      .trim()
-      .isLength({ min: 2 })
-      .withMessage("dealerName must have at least 2 characters")
-      .matches(alphaNumericWithSpaces)
-      .withMessage("dealerName must be alphanumeric"),
-    body("branch")
-      .isIn(["Maganjo", "Matugga"])
-      .withMessage("branch must be Maganjo or Matugga"),
-    body("contact")
-      .trim()
-      .matches(phoneRegex)
-      .withMessage("contact must be a valid phone number"),
-    body("sellingPrice")
-      .isNumeric()
-      .withMessage("sellingPrice must be numeric")
-      .isFloat({ min: 1 })
-      .withMessage("sellingPrice must be greater than 0")
-  ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+  procurementCreateValidators,
+  createProcurement
+);
 
-    const procurement = await Procurement.create({
-      produceName: req.body.produceName,
-      produceType: req.body.produceType,
-      date: req.body.date,
-      time: req.body.time,
-      tonnage: req.body.tonnage,
-      cost: req.body.cost,
-      dealerName: req.body.dealerName,
-      branch: req.body.branch,
-      contact: req.body.contact,
-      sellingPrice: req.body.sellingPrice
-    });
-    res.status(201).json(procurement);
-  }
+/**
+ * @swagger
+ * /procurement:
+ *   get:
+ *     summary: List procurement records (Manager only)
+ *     tags:
+ *       - Procurement
+ *     parameters:
+ *       - in: query
+ *         name: branch
+ *         schema:
+ *           type: string
+ *           enum: [Maganjo, Matugga]
+ *     responses:
+ *       200:
+ *         description: Procurement records returned
+ *       401:
+ *         description: Missing or invalid token
+ *       403:
+ *         description: Access denied
+ */
+router.get("/", auth, role("Manager"), listProcurements);
+
+/**
+ * @swagger
+ * /procurement/{id}:
+ *   get:
+ *     summary: Get procurement by id (Manager only)
+ *     tags:
+ *       - Procurement
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Procurement record returned
+ *       404:
+ *         description: Procurement not found
+ */
+router.get(
+  "/:id",
+  auth,
+  role("Manager"),
+  [param("id").isMongoId().withMessage("id must be a valid Mongo id")],
+  getProcurementById
+);
+
+/**
+ * @swagger
+ * /procurement/{id}:
+ *   patch:
+ *     summary: Update procurement by id (Manager only)
+ *     tags:
+ *       - Procurement
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               produceName:
+ *                 type: string
+ *                 enum: [Beans, Grain Maize, Cow peas, G-nuts, Soybeans]
+ *               produceType:
+ *                 type: string
+ *               date:
+ *                 type: string
+ *                 format: date
+ *               time:
+ *                 type: string
+ *               tonnage:
+ *                 type: number
+ *               cost:
+ *                 type: number
+ *               sourceType:
+ *                 type: string
+ *                 enum: [IndividualDealer, Company, Farm]
+ *               sourceName:
+ *                 type: string
+ *               dealerName:
+ *                 type: string
+ *               branch:
+ *                 type: string
+ *                 enum: [Maganjo, Matugga]
+ *               contact:
+ *                 type: string
+ *               sellingPrice:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Procurement updated
+ *       404:
+ *         description: Procurement not found
+ */
+router.patch(
+  "/:id",
+  auth,
+  role("Manager"),
+  procurementUpdateValidators,
+  updateProcurementById
+);
+
+/**
+ * @swagger
+ * /procurement/{id}:
+ *   delete:
+ *     summary: Delete procurement by id (Manager only)
+ *     tags:
+ *       - Procurement
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Procurement deleted
+ *       404:
+ *         description: Procurement not found
+ */
+router.delete(
+  "/:id",
+  auth,
+  role("Manager"),
+  [param("id").isMongoId().withMessage("id must be a valid Mongo id")],
+  deleteProcurementById
 );
 
 module.exports = router;

@@ -1,14 +1,117 @@
 const express = require("express");
-const { body, validationResult } = require("express-validator");
-const Sale = require("../models/sales");
+const { body, param } = require("express-validator");
 const auth = require("../middleware/authMiddleware");
 const role = require("../middleware/roleMiddleware");
+const { PRODUCE_CATALOG, BRANCHES } = require("../config/domain");
+const {
+  createCashSale,
+  createCreditSale,
+  listSales,
+  getSaleById,
+  updateSaleById,
+  deleteSaleById,
+  getSalesTotalsReport
+} = require("../controllers/saleController");
 
 const router = express.Router();
 const alphaNumericWithSpaces = /^[a-zA-Z0-9 ]+$/;
-const ninRegex = /^[A-Z]{2}[A-Z0-9]{12}$/i;
+const ninRegex = /^(CM|CF)[A-Z0-9]{12}$/i;
 const phoneRegex = /^\+?[0-9]{10,15}$/;
 const time24h = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+const saleUpdateValidators = [
+  param("id").isMongoId().withMessage("id must be a valid Mongo id"),
+  body("saleType")
+    .optional()
+    .isIn(["Cash", "Credit"])
+    .withMessage("saleType must be Cash or Credit"),
+  body("produceName")
+    .optional()
+    .trim()
+    .isIn(PRODUCE_CATALOG)
+    .withMessage("produceName must be from the approved produce catalog"),
+  body("produceType")
+    .optional()
+    .trim()
+    .isLength({ min: 2 })
+    .withMessage("produceType must have at least 2 characters")
+    .matches(/^[A-Za-z ]+$/)
+    .withMessage("produceType must be alphabetic"),
+  body("branch")
+    .optional()
+    .isIn(BRANCHES)
+    .withMessage("branch must be Maganjo or Matugga"),
+  body("tonnage")
+    .optional()
+    .isNumeric()
+    .withMessage("tonnage must be numeric")
+    .isFloat({ min: 1 })
+    .withMessage("tonnage must be greater than 0"),
+  body("amountPaid")
+    .optional()
+    .isNumeric()
+    .withMessage("amountPaid must be numeric")
+    .isFloat({ min: 10000 })
+    .withMessage("amountPaid must be at least 10000"),
+  body("amountDue")
+    .optional()
+    .isNumeric()
+    .withMessage("amountDue must be numeric")
+    .isFloat({ min: 10000 })
+    .withMessage("amountDue must be at least 10000"),
+  body("buyerName")
+    .optional()
+    .trim()
+    .isLength({ min: 2 })
+    .withMessage("buyerName must have at least 2 characters")
+    .matches(alphaNumericWithSpaces)
+    .withMessage("buyerName must be alphanumeric"),
+  body("salesAgentName")
+    .optional()
+    .trim()
+    .isLength({ min: 2 })
+    .withMessage("salesAgentName must have at least 2 characters")
+    .matches(alphaNumericWithSpaces)
+    .withMessage("salesAgentName must be alphanumeric"),
+  body("date")
+    .optional()
+    .isISO8601()
+    .withMessage("date must be valid"),
+  body("time")
+    .optional()
+    .matches(time24h)
+    .withMessage("time must be in HH:mm format"),
+  body("nationalId")
+    .optional()
+    .trim()
+    .matches(ninRegex)
+    .withMessage("nationalId must be a valid NIN format"),
+  body("location")
+    .optional()
+    .trim()
+    .isLength({ min: 2 })
+    .withMessage("location must have at least 2 characters")
+    .matches(alphaNumericWithSpaces)
+    .withMessage("location must be alphanumeric"),
+  body("contacts")
+    .optional()
+    .trim()
+    .matches(phoneRegex)
+    .withMessage("contacts must be a valid phone number"),
+  body("contact")
+    .optional()
+    .trim()
+    .matches(phoneRegex)
+    .withMessage("contact must be a valid phone number"),
+  body("dueDate")
+    .optional()
+    .isISO8601()
+    .withMessage("dueDate must be valid"),
+  body("dispatchDate")
+    .optional()
+    .isISO8601()
+    .withMessage("dispatchDate must be valid")
+];
 
 /**
  * @swagger
@@ -25,6 +128,7 @@ const time24h = /^([01]\d|2[0-3]):([0-5]\d)$/;
  *             type: object
  *             required:
  *               - produceName
+ *               - branch
  *               - tonnage
  *               - amountPaid
  *               - buyerName
@@ -34,7 +138,15 @@ const time24h = /^([01]\d|2[0-3]):([0-5]\d)$/;
  *             properties:
  *               produceName:
  *                 type: string
- *                 example: Tomatoes1
+ *                 enum: [Beans, Grain Maize, Cow peas, G-nuts, Soybeans]
+ *                 example: Beans
+ *               produceType:
+ *                 type: string
+ *                 description: Required if more than one type exists for produce in the selected branch
+ *                 example: Grain
+ *               branch:
+ *                 type: string
+ *                 enum: [Maganjo, Matugga]
  *               tonnage:
  *                 type: number
  *                 minimum: 1
@@ -62,18 +174,28 @@ const time24h = /^([01]\d|2[0-3]):([0-5]\d)$/;
  *       401:
  *         description: Missing or invalid token
  *       403:
- *         description: Sales agent role required
+ *         description: Manager or sales agent role required
  */
 
 router.post(
   "/cash",
   auth,
-  role("SalesAgent"),
+  role("SalesAgent", "Manager"),
   [
     body("produceName")
       .trim()
-      .matches(alphaNumericWithSpaces)
-      .withMessage("produceName must be alphanumeric"),
+      .isIn(PRODUCE_CATALOG)
+      .withMessage("produceName must be from the approved produce catalog"),
+    body("produceType")
+      .optional()
+      .trim()
+      .isLength({ min: 2 })
+      .withMessage("produceType must have at least 2 characters")
+      .matches(/^[A-Za-z ]+$/)
+      .withMessage("produceType must be alphabetic"),
+    body("branch")
+      .isIn(BRANCHES)
+      .withMessage("branch must be Maganjo or Matugga"),
     body("tonnage")
       .isNumeric()
       .withMessage("tonnage must be numeric")
@@ -107,25 +229,7 @@ router.post(
       .matches(time24h)
       .withMessage("time must be in HH:mm format")
   ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const sale = await Sale.create({
-      saleType: "Cash",
-      produceName: req.body.produceName,
-      tonnage: req.body.tonnage,
-      amountPaid: req.body.amountPaid,
-      buyerName: req.body.buyerName,
-      salesAgentName: req.body.salesAgentName,
-      date: req.body.date,
-      time: req.body.time
-    });
-
-    res.status(201).json(sale);
-  }
+  createCashSale
 );
 
 /**
@@ -150,7 +254,7 @@ router.post(
  *               - salesAgentName
  *               - dueDate
  *               - produceName
- *               - produceType
+ *               - branch
  *               - tonnage
  *               - dispatchDate
  *             properties:
@@ -177,8 +281,13 @@ router.post(
  *                 format: date
  *               produceName:
  *                 type: string
+ *                 enum: [Beans, Grain Maize, Cow peas, G-nuts, Soybeans]
  *               produceType:
  *                 type: string
+ *                 description: Required if more than one type exists for produce in the selected branch
+ *               branch:
+ *                 type: string
+ *                 enum: [Maganjo, Matugga]
  *               tonnage:
  *                 type: number
  *                 minimum: 1
@@ -193,12 +302,12 @@ router.post(
  *       401:
  *         description: Missing or invalid token
  *       403:
- *         description: Sales agent role required
+ *         description: Manager or sales agent role required
  */
 router.post(
   "/credit",
   auth,
-  role("SalesAgent"),
+  role("SalesAgent", "Manager"),
   [
     body().custom((value) => {
       if (!value.contacts && !value.contact) {
@@ -250,14 +359,18 @@ router.post(
       .withMessage("dueDate must be valid"),
     body("produceName")
       .trim()
-      .matches(alphaNumericWithSpaces)
-      .withMessage("produceName must be alphanumeric"),
+      .isIn(PRODUCE_CATALOG)
+      .withMessage("produceName must be from the approved produce catalog"),
     body("produceType")
+      .optional()
       .trim()
       .isLength({ min: 2 })
       .withMessage("produceType must have at least 2 characters")
-      .matches(/^[A-Za-z]+$/)
+      .matches(/^[A-Za-z ]+$/)
       .withMessage("produceType must be alphabetic"),
+    body("branch")
+      .isIn(BRANCHES)
+      .withMessage("branch must be Maganjo or Matugga"),
     body("tonnage")
       .isNumeric()
       .withMessage("tonnage must be numeric")
@@ -269,29 +382,183 @@ router.post(
       .isISO8601()
       .withMessage("dispatchDate must be valid")
   ],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+  createCreditSale
+);
 
-    const sale = await Sale.create({
-      saleType: "Credit",
-      buyerName: req.body.buyerName,
-      nationalId: req.body.nationalId,
-      location: req.body.location,
-      contact: req.body.contacts || req.body.contact,
-      amountDue: req.body.amountDue,
-      salesAgentName: req.body.salesAgentName,
-      dueDate: req.body.dueDate,
-      produceName: req.body.produceName,
-      produceType: req.body.produceType,
-      tonnage: req.body.tonnage,
-      dispatchDate: req.body.dispatchDate
-    });
+/**
+ * @swagger
+ * /sales/reports/totals:
+ *   get:
+ *     summary: Director-only aggregated totals across branches
+ *     tags:
+ *       - Sales
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Aggregated totals only
+ *       401:
+ *         description: Missing or invalid token
+ *       403:
+ *         description: Director role required
+ */
+router.get("/reports/totals", auth, role("Director"), getSalesTotalsReport);
 
-    res.status(201).json(sale);
-  }
+/**
+ * @swagger
+ * /sales:
+ *   get:
+ *     summary: List sales records (Manager or Sales Agent)
+ *     tags:
+ *       - Sales
+ *     parameters:
+ *       - in: query
+ *         name: saleType
+ *         schema:
+ *           type: string
+ *           enum: [Cash, Credit]
+ *     responses:
+ *       200:
+ *         description: Sales returned
+ *       401:
+ *         description: Missing or invalid token
+ *       403:
+ *         description: Access denied
+ */
+router.get("/", auth, role("Manager", "SalesAgent"), listSales);
+
+/**
+ * @swagger
+ * /sales/{id}:
+ *   get:
+ *     summary: Get sale by id (Manager or Sales Agent)
+ *     tags:
+ *       - Sales
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Sale returned
+ *       404:
+ *         description: Sale not found
+ */
+router.get(
+  "/:id",
+  auth,
+  role("Manager", "SalesAgent"),
+  [param("id").isMongoId().withMessage("id must be a valid Mongo id")],
+  getSaleById
+);
+
+/**
+ * @swagger
+ * /sales/{id}:
+ *   patch:
+ *     summary: Update sale by id (Manager or Sales Agent)
+ *     tags:
+ *       - Sales
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               produceName:
+ *                 type: string
+ *                 enum: [Beans, Grain Maize, Cow peas, G-nuts, Soybeans]
+ *               produceType:
+ *                 type: string
+ *               branch:
+ *                 type: string
+ *                 enum: [Maganjo, Matugga]
+ *               tonnage:
+ *                 type: number
+ *               amountPaid:
+ *                 type: number
+ *               amountDue:
+ *                 type: number
+ *               buyerName:
+ *                 type: string
+ *               salesAgentName:
+ *                 type: string
+ *               date:
+ *                 type: string
+ *                 format: date
+ *               time:
+ *                 type: string
+ *               nationalId:
+ *                 type: string
+ *               location:
+ *                 type: string
+ *               contacts:
+ *                 type: string
+ *               contact:
+ *                 type: string
+ *               dueDate:
+ *                 type: string
+ *                 format: date
+ *               dispatchDate:
+ *                 type: string
+ *                 format: date
+ *     responses:
+ *       200:
+ *         description: Sale updated
+ *       404:
+ *         description: Sale not found
+ */
+router.patch(
+  "/:id",
+  auth,
+  role("Manager", "SalesAgent"),
+  saleUpdateValidators,
+  updateSaleById
+);
+
+/**
+ * @swagger
+ * /sales/{id}:
+ *   delete:
+ *     summary: Delete sale by id (Manager or Sales Agent)
+ *     tags:
+ *       - Sales
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Sale deleted
+ *       404:
+ *         description: Sale not found
+ */
+router.delete(
+  "/:id",
+  auth,
+  role("Manager", "SalesAgent"),
+  [param("id").isMongoId().withMessage("id must be a valid Mongo id")],
+  deleteSaleById
 );
 
 module.exports = router;
