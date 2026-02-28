@@ -1,20 +1,11 @@
-const { validationResult } = require("express-validator");
 const Sale = require("../models/sales");
 const Inventory = require("../models/inventory");
 const Notification = require("../models/notification");
+const validateRequest = require("../utils/validateRequest");
+const { ensureBranchAccess: ensureAssignedBranch } = require("../utils/branchAccess");
 
 const nearlyEqual = (a, b) => Math.abs(Number(a) - Number(b)) < 0.01;
-const DIRECTOR_USERNAME = (process.env.DIRECTOR_USERNAME || "MrOrban").toLowerCase();
-
-const validateRequest = (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    res.status(400).json({ errors: errors.array() });
-    return false;
-  }
-
-  return true;
-};
+const DIRECTOR_USERNAME = (process.env.DIRECTOR_USERNAME || "").toLowerCase();
 
 const fetchInventoryForSale = async ({ produceName, produceType, branch }) => {
   if (produceType) {
@@ -40,17 +31,11 @@ const createManagerNotification = async (payload) => {
 };
 
 const ensureBranchAccess = (req, res, branch) => {
-  if (!req.user.branch) {
-    res.status(403).json({ message: "User branch assignment is required" });
-    return false;
-  }
-
-  if (req.user.branch !== branch) {
-    res.status(403).json({ message: "You can only manage sales for your assigned branch" });
-    return false;
-  }
-
-  return true;
+  return ensureAssignedBranch(req, res, {
+    targetBranch: branch,
+    missingMessage: "User branch assignment is required",
+    mismatchMessage: "You can only manage sales for your assigned branch"
+  });
 };
 
 const applySaleInventoryMutation = async ({ oldData, newData }) => {
@@ -392,8 +377,14 @@ const deleteSaleById = async (req, res) => {
 
 const getSalesTotalsReport = async (req, res) => {
   try {
+    if (!DIRECTOR_USERNAME) {
+      return res.status(500).json({ message: "DIRECTOR_USERNAME is not configured" });
+    }
+
     if (!req.user.username || req.user.username.toLowerCase() !== DIRECTOR_USERNAME) {
-      return res.status(403).json({ message: "Only MrOrban can view this report" });
+      return res.status(403).json({
+        message: `Only ${process.env.DIRECTOR_USERNAME} can view this report`
+      });
     }
 
     const match = {};

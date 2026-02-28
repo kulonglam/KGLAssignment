@@ -1,9 +1,11 @@
 const mongoose = require("mongoose");
 const { PRODUCE_CATALOG, BRANCHES } = require("../config/domain");
-
-const alphaNumericWithSpaces = /^[a-zA-Z0-9 ]+$/;
-const ninRegex = /^(CM|CF)[A-Z0-9]{12}$/i;
-const phoneRegex = /^\+?[0-9]{10,15}$/;
+const {
+  alphaNumericWithSpaces,
+  lettersAndSpaces,
+  ninRegex,
+  phoneRegex
+} = require("../config/validationPatterns");
 
 const saleSchema = new mongoose.Schema(
   {
@@ -23,7 +25,7 @@ const saleSchema = new mongoose.Schema(
       required: function requiredProduceType() {
         return this.saleType === "Credit";
       },
-      match: /^[A-Za-z ]+$/
+      match: lettersAndSpaces
     },
     branch: {
       type: String,

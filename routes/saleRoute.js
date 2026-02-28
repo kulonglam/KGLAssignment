@@ -4,6 +4,13 @@ const auth = require("../middleware/authMiddleware");
 const role = require("../middleware/roleMiddleware");
 const { PRODUCE_CATALOG, BRANCHES } = require("../config/domain");
 const {
+  alphaNumericWithSpaces,
+  lettersAndSpaces,
+  ninRegex,
+  phoneRegex,
+  time24h
+} = require("../config/validationPatterns");
+const {
   createCashSale,
   createCreditSale,
   listSales,
@@ -14,10 +21,6 @@ const {
 } = require("../controllers/saleController");
 
 const router = express.Router();
-const alphaNumericWithSpaces = /^[a-zA-Z0-9 ]+$/;
-const ninRegex = /^(CM|CF)[A-Z0-9]{12}$/i;
-const phoneRegex = /^\+?[0-9]{10,15}$/;
-const time24h = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const saleUpdateValidators = [
   param("id").isMongoId().withMessage("id must be a valid Mongo id"),
@@ -35,7 +38,7 @@ const saleUpdateValidators = [
     .trim()
     .isLength({ min: 2 })
     .withMessage("produceType must have at least 2 characters")
-    .matches(/^[A-Za-z ]+$/)
+    .matches(lettersAndSpaces)
     .withMessage("produceType must be alphabetic"),
   body("branch")
     .optional()
@@ -191,7 +194,7 @@ router.post(
       .trim()
       .isLength({ min: 2 })
       .withMessage("produceType must have at least 2 characters")
-      .matches(/^[A-Za-z ]+$/)
+      .matches(lettersAndSpaces)
       .withMessage("produceType must be alphabetic"),
     body("branch")
       .isIn(BRANCHES)
@@ -366,7 +369,7 @@ router.post(
       .trim()
       .isLength({ min: 2 })
       .withMessage("produceType must have at least 2 characters")
-      .matches(/^[A-Za-z ]+$/)
+      .matches(lettersAndSpaces)
       .withMessage("produceType must be alphabetic"),
     body("branch")
       .isIn(BRANCHES)

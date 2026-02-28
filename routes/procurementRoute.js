@@ -12,14 +12,17 @@ const {
 const {
   PRODUCE_CATALOG,
   BRANCHES,
-  PROCUREMENT_SOURCE_TYPES,
-  OWN_FARM_NAMES
+  PROCUREMENT_SOURCE_TYPES
 } = require("../config/domain");
+const {
+  alphaNumericWithSpaces,
+  lettersAndSpaces,
+  phoneRegex,
+  time24h
+} = require("../config/validationPatterns");
+const { validateProcurementSource } = require("../utils/procurementSourceRule");
 
 const router = express.Router();
-const alphaNumericWithSpaces = /^[a-zA-Z0-9 ]+$/;
-const time24h = /^([01]\d|2[0-3]):([0-5]\d)$/;
-const phoneRegex = /^\+?[0-9]{10,15}$/;
 
 const procurementCreateValidators = [
   body().custom((value) => {
@@ -37,7 +40,7 @@ const procurementCreateValidators = [
     .trim()
     .isLength({ min: 2 })
     .withMessage("produceType must have at least 2 characters")
-    .matches(/^[A-Za-z ]+$/)
+    .matches(lettersAndSpaces)
     .withMessage("produceType must contain alphabetic characters only"),
   body("date")
     .notEmpty()
@@ -89,13 +92,14 @@ const procurementCreateValidators = [
     .isFloat({ min: 1 })
     .withMessage("sellingPrice must be greater than 0"),
   body().custom((value) => {
-    if (value.sourceType === "IndividualDealer" && Number(value.tonnage) < 1000) {
-      throw new Error("IndividualDealer procurements must be at least 1000kg");
-    }
-
     const sourceName = value.sourceName || value.dealerName;
-    if (value.sourceType === "Farm" && !OWN_FARM_NAMES.includes(sourceName)) {
-      throw new Error("Farm sourceName must be Maganjo or Matugga");
+    const sourceValidation = validateProcurementSource({
+      sourceType: value.sourceType,
+      sourceName,
+      tonnage: value.tonnage
+    });
+    if (!sourceValidation.valid) {
+      throw new Error(sourceValidation.message);
     }
 
     return true;
@@ -114,7 +118,7 @@ const procurementUpdateValidators = [
     .trim()
     .isLength({ min: 2 })
     .withMessage("produceType must have at least 2 characters")
-    .matches(/^[A-Za-z ]+$/)
+    .matches(lettersAndSpaces)
     .withMessage("produceType must contain alphabetic characters only"),
   body("date")
     .optional()

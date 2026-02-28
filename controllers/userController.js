@@ -1,7 +1,8 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { validationResult } = require("express-validator");
 const User = require("../models/user");
+const validateRequest = require("../utils/validateRequest");
+const { ensureBranchAccess } = require("../utils/branchAccess");
 
 const sanitizeUser = (user) => ({
   id: user._id,
@@ -82,17 +83,11 @@ const ensureMinimumBranchStaff = async ({ branch, role, res, action }) => {
 };
 
 const managerBranchGuard = (req, res, targetBranch) => {
-  if (!req.user.branch) {
-    res.status(403).json({ message: "Manager branch assignment is required" });
-    return false;
-  }
-
-  if (targetBranch && req.user.branch !== targetBranch) {
-    res.status(403).json({ message: "Manager can only manage users for assigned branch" });
-    return false;
-  }
-
-  return true;
+  return ensureBranchAccess(req, res, {
+    targetBranch,
+    missingMessage: "Manager branch assignment is required",
+    mismatchMessage: "Manager can only manage users for assigned branch"
+  });
 };
 
 const canCreateUser = async (req, res) => {
@@ -124,16 +119,6 @@ const canCreateUser = async (req, res) => {
 
   res.status(403).json({ message: "Access denied" });
   return false;
-};
-
-const validateRequest = (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    res.status(400).json({ errors: errors.array() });
-    return false;
-  }
-
-  return true;
 };
 
 const login = async (req, res) => {

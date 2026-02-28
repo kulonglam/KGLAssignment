@@ -1,44 +1,25 @@
-const { validationResult } = require("express-validator");
 const Procurement = require("../models/procurement");
 const Inventory = require("../models/inventory");
-const { OWN_FARM_NAMES } = require("../config/domain");
-
-const validateRequest = (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    res.status(400).json({ errors: errors.array() });
-    return false;
-  }
-
-  return true;
-};
+const validateRequest = require("../utils/validateRequest");
+const { ensureBranchAccess } = require("../utils/branchAccess");
+const { validateProcurementSource } = require("../utils/procurementSourceRule");
 
 const managerBranchGuard = (req, res, targetBranch) => {
-  if (!req.user.branch) {
-    res.status(403).json({ message: "Manager branch assignment is required" });
-    return false;
-  }
-
-  if (req.user.branch !== targetBranch) {
-    res.status(403).json({
-      message: "Manager can only manage procurement for assigned branch"
-    });
-    return false;
-  }
-
-  return true;
+  return ensureBranchAccess(req, res, {
+    targetBranch,
+    missingMessage: "Manager branch assignment is required",
+    mismatchMessage: "Manager can only manage procurement for assigned branch"
+  });
 };
 
 const validateSourceRules = ({ sourceType, sourceName, tonnage }, res) => {
-  if (sourceType === "IndividualDealer" && Number(tonnage) < 1000) {
-    res
-      .status(400)
-      .json({ message: "IndividualDealer procurements must be at least 1000kg" });
-    return false;
-  }
-
-  if (sourceType === "Farm" && !OWN_FARM_NAMES.includes(sourceName)) {
-    res.status(400).json({ message: "Farm sourceName must be Maganjo or Matugga" });
+  const sourceValidation = validateProcurementSource({
+    sourceType,
+    sourceName,
+    tonnage
+  });
+  if (!sourceValidation.valid) {
+    res.status(400).json({ message: sourceValidation.message });
     return false;
   }
 

@@ -4,6 +4,7 @@ const User = require("../models/user");
 const auth = require("../middleware/authMiddleware");
 const role = require("../middleware/roleMiddleware");
 const { BRANCHES } = require("../config/domain");
+const { alphaNumeric } = require("../config/validationPatterns");
 const {
   login,
   listUsers,
@@ -14,7 +15,6 @@ const {
 } = require("../controllers/userController");
 
 const router = express.Router();
-const alphaNumeric = /^[a-zA-Z0-9]+$/;
 
 /**
  * @swagger

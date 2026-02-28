@@ -2,13 +2,14 @@ const bcrypt = require("bcryptjs");
 const User = require("../models/user");
 
 const ensureDirectorAccount = async () => {
-  const directorUsername = process.env.DIRECTOR_USERNAME || "MrOrban";
-  const directorEmail = process.env.DIRECTOR_EMAIL || "orban@kgl.local";
+  const directorUsername = process.env.DIRECTOR_USERNAME;
+  const directorEmail = process.env.DIRECTOR_EMAIL;
   const directorPassword = process.env.DIRECTOR_PASSWORD;
 
-  if (!directorPassword) {
-    console.warn("DIRECTOR_PASSWORD is not set; skipping director seed");
-    return;
+  if (!directorUsername || !directorEmail || !directorPassword) {
+    throw new Error(
+      "DIRECTOR_USERNAME, DIRECTOR_EMAIL, and DIRECTOR_PASSWORD must be set for seeding"
+    );
   }
 
   const existing = await User.findOne({
@@ -32,4 +33,8 @@ const ensureDirectorAccount = async () => {
   });
 };
 
-module.exports = ensureDirectorAccount;
+const seedData = async () => {
+  await ensureDirectorAccount();
+};
+
+module.exports = seedData;

@@ -1,7 +1,8 @@
 require("dotenv").config();
 const express = require("express");
 const connectDB = require("./config/db");
-const ensureDirectorAccount = require("./config/seedDirector");
+const seedData = require("./config/seedData");
+const { assertRequiredEnvVars } = require("./config/requiredEnv");
 const swaggerJsdoc = require("swagger-jsdoc");
 const swaggerUi = require("swagger-ui-express");
 
@@ -12,6 +13,12 @@ const userRoutes = require("./routes/userRoute");
 
 const app = express();
 app.use(express.json());
+app.get("/", (req, res) => {
+  res.status(200).json({
+    message: "Karibu Groceries API is running",
+    docs: "/api-docs"
+  });
+});
 
 const options = {
   definition: {
@@ -61,9 +68,11 @@ app.use("/sales", salesRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/users", userRoutes);
 
+
 const startServer = async () => {
+  assertRequiredEnvVars();
   await connectDB();
-  await ensureDirectorAccount();
+  await seedData();
 
   app.listen(process.env.PORT, () =>
     console.log(`Server running on port ${process.env.PORT}`)

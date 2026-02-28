@@ -1,28 +1,13 @@
-const { validationResult } = require("express-validator");
 const Notification = require("../models/notification");
-
-const validateRequest = (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    res.status(400).json({ errors: errors.array() });
-    return false;
-  }
-
-  return true;
-};
+const validateRequest = require("../utils/validateRequest");
+const { ensureBranchAccess } = require("../utils/branchAccess");
 
 const ensureManagerBranch = (req, res) => {
-  if (!req.user.branch) {
-    res.status(403).json({ message: "Manager branch assignment is required" });
-    return false;
-  }
-
-  if (req.query.branch && req.query.branch !== req.user.branch) {
-    res.status(403).json({ message: "You can only access notifications for your assigned branch" });
-    return false;
-  }
-
-  return true;
+  return ensureBranchAccess(req, res, {
+    targetBranch: req.query.branch,
+    missingMessage: "Manager branch assignment is required",
+    mismatchMessage: "You can only access notifications for your assigned branch"
+  });
 };
 
 const listNotifications = async (req, res) => {

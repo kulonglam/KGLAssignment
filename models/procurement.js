@@ -2,12 +2,14 @@ const mongoose = require("mongoose");
 const {
   PRODUCE_CATALOG,
   BRANCHES,
-  PROCUREMENT_SOURCE_TYPES,
-  OWN_FARM_NAMES
+  PROCUREMENT_SOURCE_TYPES
 } = require("../config/domain");
-
-const alphaNumericWithSpaces = /^[a-zA-Z0-9 ]+$/;
-const phoneRegex = /^\+?[0-9]{10,15}$/;
+const {
+  alphaNumericWithSpaces,
+  lettersAndSpaces,
+  phoneRegex
+} = require("../config/validationPatterns");
+const { validateProcurementSource } = require("../utils/procurementSourceRule");
 
 const procurementSchema = new mongoose.Schema({
   produceName: { type: String, enum: PRODUCE_CATALOG, required: true },
@@ -15,7 +17,7 @@ const procurementSchema = new mongoose.Schema({
     type: String,
     required: true,
     minlength: 2,
-    match: /^[A-Za-z ]+$/
+    match: lettersAndSpaces
   },
   date: { type: Date, required: true },
   time: { type: String, required: true },
@@ -28,14 +30,15 @@ const procurementSchema = new mongoose.Schema({
     minlength: 2,
     match: alphaNumericWithSpaces,
     validate: {
-      validator: function validateFarmName(value) {
-        if (this.sourceType !== "Farm") {
-          return true;
-        }
-
-        return OWN_FARM_NAMES.includes(value);
+      validator: function validateSourceRules(value) {
+        const sourceValidation = validateProcurementSource({
+          sourceType: this.sourceType,
+          sourceName: value,
+          tonnage: this.tonnage
+        });
+        return sourceValidation.valid;
       },
-      message: "Farm sourceName must be Maganjo or Matugga"
+      message: "Invalid procurement source details"
     }
   },
   branch: { type: String, enum: BRANCHES, required: true },
