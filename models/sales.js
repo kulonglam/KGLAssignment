@@ -1,11 +1,11 @@
 const mongoose = require("mongoose");
-const { PRODUCE_CATALOG, BRANCHES } = require("../config/domain");
-const {
-  alphaNumericWithSpaces,
-  lettersAndSpaces,
-  ninRegex,
-  phoneRegex
-} = require("../config/validationPatterns");
+
+const PRODUCE_CATALOG = ["Beans", "Grain Maize", "Cow peas", "G-nuts", "Soybeans"];
+const BRANCHES = ["Maganjo", "Matugga"];
+const alphaNumericWithSpaces = /^[a-zA-Z0-9 ]+$/;
+const lettersAndSpaces = /^[A-Za-z ]+$/;
+const ninRegex = /^(CM|CF)[A-Z0-9]{12}$/i;
+const phoneRegex = /^\+?[0-9]{10,15}$/;
 
 const saleSchema = new mongoose.Schema(
   {

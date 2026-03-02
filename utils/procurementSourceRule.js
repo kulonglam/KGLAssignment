@@ -1,4 +1,4 @@
-const { OWN_FARM_NAMES } = require("../config/domain");
+const OWN_FARM_NAMES = ["Maganjo", "Matugga"];
 
 const validateProcurementSource = ({ sourceType, sourceName, tonnage }) => {
   if (sourceType === "IndividualDealer" && Number(tonnage) < 1000) {

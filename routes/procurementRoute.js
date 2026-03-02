@@ -9,20 +9,16 @@ const {
   updateProcurementById,
   deleteProcurementById
 } = require("../controllers/procurementController");
-const {
-  PRODUCE_CATALOG,
-  BRANCHES,
-  PROCUREMENT_SOURCE_TYPES
-} = require("../config/domain");
-const {
-  alphaNumericWithSpaces,
-  lettersAndSpaces,
-  phoneRegex,
-  time24h
-} = require("../config/validationPatterns");
 const { validateProcurementSource } = require("../utils/procurementSourceRule");
 
 const router = express.Router();
+const PRODUCE_CATALOG = ["Beans", "Grain Maize", "Cow peas", "G-nuts", "Soybeans"];
+const BRANCHES = ["Maganjo", "Matugga"];
+const PROCUREMENT_SOURCE_TYPES = ["IndividualDealer", "Company", "Farm"];
+const alphaNumericWithSpaces = /^[a-zA-Z0-9 ]+$/;
+const lettersAndSpaces = /^[A-Za-z ]+$/;
+const phoneRegex = /^\+?[0-9]{10,15}$/;
+const time24h = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const procurementCreateValidators = [
   body().custom((value) => {

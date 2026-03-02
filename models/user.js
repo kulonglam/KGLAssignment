@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const { BRANCHES } = require("../config/domain");
+const BRANCHES = ["Maganjo", "Matugga"];
 
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true },

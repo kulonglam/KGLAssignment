@@ -5,7 +5,6 @@ const validateRequest = require("../utils/validateRequest");
 const { ensureBranchAccess: ensureAssignedBranch } = require("../utils/branchAccess");
 
 const nearlyEqual = (a, b) => Math.abs(Number(a) - Number(b)) < 0.01;
-const DIRECTOR_USERNAME = (process.env.DIRECTOR_USERNAME || "").toLowerCase();
 
 const fetchInventoryForSale = async ({ produceName, produceType, branch }) => {
   if (produceType) {
@@ -377,14 +376,8 @@ const deleteSaleById = async (req, res) => {
 
 const getSalesTotalsReport = async (req, res) => {
   try {
-    if (!DIRECTOR_USERNAME) {
-      return res.status(500).json({ message: "DIRECTOR_USERNAME is not configured" });
-    }
-
-    if (!req.user.username || req.user.username.toLowerCase() !== DIRECTOR_USERNAME) {
-      return res.status(403).json({
-        message: `Only ${process.env.DIRECTOR_USERNAME} can view this report`
-      });
+    if (req.user.role !== "Director") {
+      return res.status(403).json({ message: "Only Director can view this report" });
     }
 
     const match = {};

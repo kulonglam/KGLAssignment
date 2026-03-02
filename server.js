@@ -1,8 +1,6 @@
 require("dotenv").config();
 const express = require("express");
 const connectDB = require("./config/db");
-const seedData = require("./config/seedData");
-const { assertRequiredEnvVars } = require("./config/requiredEnv");
 const swaggerJsdoc = require("swagger-jsdoc");
 const swaggerUi = require("swagger-ui-express");
 
@@ -68,11 +66,25 @@ app.use("/sales", salesRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/users", userRoutes);
 
+const REQUIRED_ENV_VARS = [
+  "PORT",
+  "DATABASE_URI",
+  "JWT_SECRET"
+];
+
+const assertRequiredEnvVars = () => {
+  const missing = REQUIRED_ENV_VARS.filter(
+    (name) => !process.env[name] || !String(process.env[name]).trim()
+  );
+
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
+  }
+};
 
 const startServer = async () => {
   assertRequiredEnvVars();
   await connectDB();
-  await seedData();
 
   app.listen(process.env.PORT, () =>
     console.log(`Server running on port ${process.env.PORT}`)

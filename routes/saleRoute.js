@@ -2,14 +2,6 @@ const express = require("express");
 const { body, param } = require("express-validator");
 const auth = require("../middleware/authMiddleware");
 const role = require("../middleware/roleMiddleware");
-const { PRODUCE_CATALOG, BRANCHES } = require("../config/domain");
-const {
-  alphaNumericWithSpaces,
-  lettersAndSpaces,
-  ninRegex,
-  phoneRegex,
-  time24h
-} = require("../config/validationPatterns");
 const {
   createCashSale,
   createCreditSale,
@@ -21,6 +13,13 @@ const {
 } = require("../controllers/saleController");
 
 const router = express.Router();
+const PRODUCE_CATALOG = ["Beans", "Grain Maize", "Cow peas", "G-nuts", "Soybeans"];
+const BRANCHES = ["Maganjo", "Matugga"];
+const alphaNumericWithSpaces = /^[a-zA-Z0-9 ]+$/;
+const lettersAndSpaces = /^[A-Za-z ]+$/;
+const ninRegex = /^(CM|CF)[A-Z0-9]{12}$/i;
+const phoneRegex = /^\+?[0-9]{10,15}$/;
+const time24h = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
 const saleUpdateValidators = [
   param("id").isMongoId().withMessage("id must be a valid Mongo id"),

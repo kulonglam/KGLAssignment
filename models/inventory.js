@@ -1,6 +1,8 @@
 const mongoose = require("mongoose");
-const { PRODUCE_CATALOG, BRANCHES } = require("../config/domain");
-const { lettersAndSpaces } = require("../config/validationPatterns");
+
+const PRODUCE_CATALOG = ["Beans", "Grain Maize", "Cow peas", "G-nuts", "Soybeans"];
+const BRANCHES = ["Maganjo", "Matugga"];
+const lettersAndSpaces = /^[A-Za-z ]+$/;
 
 const inventorySchema = new mongoose.Schema(
   {

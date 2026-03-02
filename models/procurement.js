@@ -1,15 +1,12 @@
 const mongoose = require("mongoose");
-const {
-  PRODUCE_CATALOG,
-  BRANCHES,
-  PROCUREMENT_SOURCE_TYPES
-} = require("../config/domain");
-const {
-  alphaNumericWithSpaces,
-  lettersAndSpaces,
-  phoneRegex
-} = require("../config/validationPatterns");
 const { validateProcurementSource } = require("../utils/procurementSourceRule");
+
+const PRODUCE_CATALOG = ["Beans", "Grain Maize", "Cow peas", "G-nuts", "Soybeans"];
+const BRANCHES = ["Maganjo", "Matugga"];
+const PROCUREMENT_SOURCE_TYPES = ["IndividualDealer", "Company", "Farm"];
+const alphaNumericWithSpaces = /^[a-zA-Z0-9 ]+$/;
+const lettersAndSpaces = /^[A-Za-z ]+$/;
+const phoneRegex = /^\+?[0-9]{10,15}$/;
 
 const procurementSchema = new mongoose.Schema({
   produceName: { type: String, enum: PRODUCE_CATALOG, required: true },
