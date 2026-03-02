@@ -6,6 +6,7 @@ const { ensureBranchAccess: ensureAssignedBranch } = require("../utils/branchAcc
 
 const nearlyEqual = (a, b) => Math.abs(Number(a) - Number(b)) < 0.01;
 
+// Resolves a single inventory record; requires explicit produceType when multiple matches exist.
 const fetchInventoryForSale = async ({ produceName, produceType, branch }) => {
   if (produceType) {
     return Inventory.findOne({ produceName, produceType, branch });
@@ -37,6 +38,7 @@ const ensureBranchAccess = (req, res, branch) => {
   });
 };
 
+// Applies stock correction for sale edits and returns rollback handler.
 const applySaleInventoryMutation = async ({ oldData, newData }) => {
   const oldKey = {
     produceName: oldData.produceName,
@@ -55,6 +57,7 @@ const applySaleInventoryMutation = async ({ oldData, newData }) => {
     oldKey.produceType === newKey.produceType &&
     oldKey.branch === newKey.branch;
 
+  // Same inventory key: adjust by delta only.
   if (sameKey) {
     const delta = oldTonnage - newTonnage;
     if (delta >= 0) {
@@ -77,6 +80,7 @@ const applySaleInventoryMutation = async ({ oldData, newData }) => {
     };
   }
 
+  // Inventory key changed: restore old stock then deduct from the new key, with rollback on failure.
   await Inventory.findOneAndUpdate(oldKey, { $inc: { stockKg: oldTonnage } });
   const reduced = await Inventory.findOneAndUpdate(
     { ...newKey, stockKg: { $gte: newTonnage } },
@@ -309,6 +313,7 @@ const updateSaleById = async (req, res) => {
     });
   }
 
+  // Preserve inventory consistency if sale update validation/save fails after stock mutation.
   let rollback = async () => {};
   try {
     rollback = await applySaleInventoryMutation({ oldData: sale, newData: nextData });
@@ -401,6 +406,7 @@ const getSalesTotalsReport = async (req, res) => {
       }
     }
 
+    // Director endpoint returns aggregates only (no raw cross-branch sale records).
     const [grandTotals] = await Sale.aggregate([
       { $match: match },
       {

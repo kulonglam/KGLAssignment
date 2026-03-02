@@ -56,6 +56,7 @@ const mapDuplicateUserError = (error, res, context = {}) => {
   return true;
 };
 
+// Prevents updates/deletes that would break mandatory branch staffing levels.
 const ensureMinimumBranchStaff = async ({ branch, role, res, action }) => {
   const minimum = MIN_BRANCH_STAFF[role];
   if (!minimum) {

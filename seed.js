@@ -5,6 +5,7 @@ const connectDB = require("./config/db");
 const User = require("./models/user");
 
 const REQUIRED_ENV_VARS = ["DATABASE_URI"];
+// Baseline workforce required by business rules: 1 director, 1 manager + 2 sales agents per branch.
 const SEED_USERS = [
   {
     username: "MrOrban",
@@ -70,11 +71,13 @@ const assertRequiredEnvVars = () => {
   }
 };
 
+// Idempotent upsert so re-running seed keeps required users in sync.
 const upsertUser = async (seedUser) => {
   const existing = await User.findOne({
     $or: [{ username: seedUser.username }, { email: seedUser.email }]
   });
 
+  // Keep credentials deterministic for seeded accounts.
   const hashedPassword = await bcrypt.hash(seedUser.password, 10);
 
   if (!existing) {

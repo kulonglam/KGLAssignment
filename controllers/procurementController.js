@@ -26,6 +26,7 @@ const validateSourceRules = ({ sourceType, sourceName, tonnage }, res) => {
   return true;
 };
 
+// Reconciles inventory when a procurement record is edited and returns rollback handler.
 const applyInventoryForProcurementMutation = async ({
   oldData,
   newData
@@ -48,6 +49,7 @@ const applyInventoryForProcurementMutation = async ({
     oldKey.produceType === newKey.produceType &&
     oldKey.branch === newKey.branch;
 
+  // Same inventory record: only adjust quantity and latest selling price.
   if (isSameKey) {
     const delta = newTonnage - oldTonnage;
     if (delta >= 0) {
@@ -84,6 +86,7 @@ const applyInventoryForProcurementMutation = async ({
     };
   }
 
+  // Inventory key changed: move quantity from old key to new key atomically-ish with rollback.
   const oldUpdated = await Inventory.findOneAndUpdate(
     { ...oldKey, stockKg: { $gte: oldTonnage } },
     { $inc: { stockKg: -oldTonnage } },
@@ -241,6 +244,7 @@ const updateProcurementById = async (req, res) => {
     return;
   }
 
+  // Roll back stock mutation if procurement save fails after inventory adjustment.
   let rollback = async () => {};
   try {
     rollback = await applyInventoryForProcurementMutation({
